@@ -264,9 +264,11 @@ class TestXUrllib(unittest.TestCase):
         if not hasattr(ssl, 'PROTOCOL_SSLv3'):
             return
 
+        # pylint: disable=E1101
         ssl_daemon = RawSSLDaemon(Ok200Handler, ssl_version=ssl.PROTOCOL_SSLv3)
         ssl_daemon.start()
         ssl_daemon.wait_for_start()
+        # pylint: disable=E1101
 
         port = ssl_daemon.get_port()
 
@@ -274,6 +276,17 @@ class TestXUrllib(unittest.TestCase):
 
         resp = self.uri_opener.GET(url)
         self.assertEqual(resp.get_body(), Ok200Handler.body)
+
+    @attr('internet')
+    @attr('ci_fails')
+    def test_ssl_sni(self):
+        """
+        Test is our HTTP client supports SSL SNI
+        """
+        url = URL('https://sni.velox.ch/')
+
+        resp = self.uri_opener.GET(url)
+        self.assertIn('<strong>Great!', resp.get_body())
 
     def test_ssl_fail_when_requesting_http(self):
         http_daemon = UpperDaemon(Ok200Handler)
@@ -423,7 +436,7 @@ class TestXUrllib(unittest.TestCase):
                          {'Bad file descriptor'})
 
     def test_rate_limit_high(self):
-        self.rate_limit_generic(500, 0.01, 0.4)
+        self.rate_limit_generic(500, 0.009, 0.4)
 
     def test_rate_limit_low(self):
         self.rate_limit_generic(1, 1, 2.2)

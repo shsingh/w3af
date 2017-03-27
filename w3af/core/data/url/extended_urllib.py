@@ -849,8 +849,8 @@ class ExtendedUrllib(object):
         
     def _generic_send_error_handler(self, req, exception, grep, original_url):
         if not req.error_handling:
-            msg = u'Raising HTTP error "%s" "%s". Reason: "%s". Error' \
-                  u' handling was disabled for this request.'
+            msg = (u'Raising HTTP error "%s" "%s". Reason: "%s". Error'
+                   u' handling was disabled for this request.')
             om.out.debug(msg % (req.get_method(), original_url, exception))
             error_str = get_exception_reason(exception) or str(exception)
             raise HTTPRequestException(error_str, request=req)
@@ -1039,9 +1039,24 @@ class ExtendedUrllib(object):
         root_url = uri.base_url()
         host = uri.get_domain()
 
+        # We drastically increase the timeout for this request. What
+        # could have happen is that w3af lowered the timeout for HTTP
+        # responses in a very aggressive way and then sent many HTTP
+        # requests at the same time. Those requests failed due to the
+        # aggressive timeout which lead to multiple sequential failures
+        #
+        # When multiple failures are detected w3af tries to check if
+        # the remote site is still up using this method. If we don't
+        # increase the timeout like this we'll still use the incorrectly
+        # set timeout, which would (one more time) trigger an error.
+        # Sadly this time the error would be fatal since the scan would
+        # stop.
+        timeout = self.get_timeout(host) * 4
+        self.set_timeout(timeout, host)
+
         req = HTTPRequest(root_url, cookies=True, cache=False,
                           error_handling=False, method='GET', retries=0,
-                          timeout=self.get_timeout(host))
+                          timeout=timeout)
         req = self.add_headers(req)
 
         try:

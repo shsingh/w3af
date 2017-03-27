@@ -36,7 +36,7 @@ enable=E0101,E1103,E1124,E0611,E1123,E1120,E0202,E0203,E0100,E1305,E0221,E0222,E
 # can either give multiple identifier separated by comma (,) or put this option
 # multiple time (only on the command line, not in the configuration file where
 # it should appear only once).
-#disable=
+disable=F0010
 
 [REPORTS]
 
@@ -98,9 +98,6 @@ indent-string='    '
 
 
 [BASIC]
-
-# Required attributes for module, separated by a comma
-required-attributes=
 
 # List of builtins function names that should not be used, separated by a comma
 bad-functions=map,filter,apply,input
@@ -231,10 +228,6 @@ int-import-graph=
 
 
 [CLASSES]
-
-# List of interface methods to ignore, separated by a comma. This is used for
-# instance to not check methods defines in Zope's Interface base class.
-ignore-iface-methods=isImplementedBy,deferred,extends,names,namesAndDescriptions,queryDescriptionFor,getBases,getDescriptionFor,getDoc,getName,getTaggedValue,getTaggedValueTags,isEqualOrExtendedBy,setTaggedValue,isImplementedByInstancesOf,adaptWith,is_implemented_by
 
 # List of method names used to declare (i.e. assign) instance attributes.
 defining-attr-methods=__init__,__new__,setUp

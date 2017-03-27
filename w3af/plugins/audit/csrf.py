@@ -21,7 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 """
 import copy
 
-from math import log, floor
+from math import log
 from itertools import chain
 
 import w3af.core.controllers.output_manager as om
@@ -242,7 +242,7 @@ class csrf(AuditPlugin):
                 return True
     
         # Calculate entropy
-        entropy = self.shannon_entropy(value.encode('utf8'))
+        entropy = self.shannon_entropy(value.encode('utf8', errors='ignore'))
         if entropy >= min_entropy:
             return True
 

@@ -83,20 +83,22 @@ class BlindSqliResponseDiff(object):
         rnd_num = int(rand_number(2, exclude_numbers))
         rnd_num_plus_one = rnd_num + 1
 
+        num_dict = {'num': rnd_num}
+
         # Numeric/Datetime
-        true_stm = '%i OR %i=%i ' % (rnd_num, rnd_num, rnd_num)
+        true_stm = '%(num)s OR %(num)s=%(num)s OR %(num)s=%(num)s ' % num_dict
         false_stm = '%i AND %i=%i ' % (rnd_num, rnd_num, rnd_num_plus_one)
         res['numeric'] = (true_stm, false_stm)
 
         # Single quotes
-        true_stm = "%i' OR '%i'='%i" % (rnd_num, rnd_num, rnd_num)
+        true_stm = "%(num)s' OR '%(num)s'='%(num)s' OR '%(num)s'='%(num)s" % num_dict
         false_stm = "%i' AND '%i'='%i" % (rnd_num, rnd_num, rnd_num_plus_one)
-        res['stringsingle'] = (true_stm, false_stm)
+        res['string_single'] = (true_stm, false_stm)
 
         # Double quotes
-        true_stm = '%i" OR "%i"="%i' % (rnd_num, rnd_num, rnd_num)
+        true_stm = '%(num)s" OR "%(num)s"="%(num)s" OR "%(num)s"="%(num)s' % num_dict
         false_stm = '%i" AND "%i"="%i' % (rnd_num, rnd_num, rnd_num_plus_one)
-        res['stringdouble'] = (true_stm, false_stm)
+        res['string_double'] = (true_stm, false_stm)
 
         return res
 
@@ -138,7 +140,7 @@ class BlindSqliResponseDiff(object):
             #
             compare_diff = True
 
-        syntax_error = "d'z'0"
+        syntax_error = u"a'b\"c'd\""
         mutant.set_token_value(syntax_error)
         syntax_error_response, body_syntax_error_response = send_clean(mutant)
 
@@ -178,9 +180,9 @@ class BlindSqliResponseDiff(object):
             
             desc = 'Blind SQL injection was found at: "%s", using'\
                    ' HTTP method %s. The injectable parameter is: "%s"'
-            desc = desc % (mutant.get_url(),
-                           mutant.get_method(),
-                           mutant.get_token_name())
+            desc %= (mutant.get_url(),
+                     mutant.get_method(),
+                     mutant.get_token_name())
             
             v = Vuln.from_mutant('Blind SQL injection vulnerability', desc,
                                  severity.HIGH, response_ids, 'blind_sqli',
@@ -210,5 +212,4 @@ class BlindSqliResponseDiff(object):
         self.debug('Result: %s' % cmp_res)
 
         return cmp_res
-
 

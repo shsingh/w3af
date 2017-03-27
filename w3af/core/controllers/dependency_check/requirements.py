@@ -24,7 +24,8 @@ from w3af.core.controllers.dependency_check.pip_dependency import PIPDependency
 CORE = 1
 GUI = 2
 
-CORE_PIP_PACKAGES = [PIPDependency('clamd', 'clamd', '1.0.1'),
+
+CORE_PIP_PACKAGES = [PIPDependency('pyclamd', 'pyClamd', '0.3.15'),
                      PIPDependency('github', 'PyGithub', '1.21.0'),
                      PIPDependency('git.util', 'GitPython', '0.3.2.RC1'),
                      PIPDependency('pybloomfilter', 'pybloomfiltermmap', '0.3.14'),
@@ -38,8 +39,8 @@ CORE_PIP_PACKAGES = [PIPDependency('clamd', 'clamd', '1.0.1'),
                      PIPDependency('OpenSSL', 'pyOpenSSL', '0.15.1'),
                      PIPDependency('ndg', 'ndg-httpsclient', '0.3.3'),
 
-                     # We need 0.1.7 because of mitmproxy
-                     PIPDependency('pyasn1', 'pyasn1', '0.1.7'),
+                     # We need 0.1.8 because of mitmproxy
+                     PIPDependency('pyasn1', 'pyasn1', '0.1.9'),
 
                      PIPDependency('lxml', 'lxml', '3.4.4'),
                      PIPDependency('scapy.config', 'scapy-real', '2.2.0-dev'),
@@ -50,15 +51,18 @@ CORE_PIP_PACKAGES = [PIPDependency('clamd', 'clamd', '1.0.1'),
                      PIPDependency('Halberd', 'halberd', '0.2.4'),
                      PIPDependency('darts.lib.utils', 'darts.util.lru', '0.5'),
                      PIPDependency('jinja2', 'Jinja2', '2.7.3'),
-                     PIPDependency('vulndb', 'vulndb', '0.0.17'),
+                     PIPDependency('vulndb', 'vulndb', '0.0.19'),
                      PIPDependency('markdown', 'markdown', '2.6.1'),
 
                      # This was used for testing, but now it's required for
                      # regular users too, do not remove!
                      PIPDependency('psutil', 'psutil', '2.2.1'),
 
+                     # Console colors
+                     PIPDependency('termcolor', 'termcolor', '1.1.0'),
+
                      # We "outsource" the HTTP proxy feature to mitmproxy
-                     PIPDependency('mitmproxy', 'mitmproxy', '0.12.1'),
+                     PIPDependency('mitmproxy', 'mitmproxy', '0.13'),
 
                      # https://gist.github.com/andresriancho/cf2fa1ce239b30f37bd9
                      PIPDependency('ruamel.ordereddict',
@@ -68,6 +72,10 @@ CORE_PIP_PACKAGES = [PIPDependency('clamd', 'clamd', '1.0.1'),
                      # Only used by the REST API, but in the future the console
                      # and GUI will consume it so it's ok to put this here
                      PIPDependency('Flask', 'Flask', '0.10.1'),
+                     PIPDependency('yaml', 'PyYAML', '3.12'),
+
+                     # tldextract extracts the tld from any domain name
+                     PIPDependency('tldextract', 'tldextract', '1.7.2'),
                      ]
 
 GUI_PIP_EXTRAS = [PIPDependency('xdot', 'xdot', '0.6')]

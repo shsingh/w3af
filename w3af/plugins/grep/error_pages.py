@@ -105,6 +105,9 @@ class error_pages(GrepPlugin):
         'at org.apache.tomcat.',
         'at org.apache.jasper.',
 
+        # https://github.com/andresriancho/w3af/issues/4001
+        '<html><head><title>Application Exception</title>',
+
         # ruby
         '<h1 class="error_title">Ruby on Rails application could not be started</h1>',
 
@@ -161,7 +164,7 @@ class error_pages(GrepPlugin):
         for msg in self._multi_in.query(response.body):
             
             desc = 'The URL: "%s" contains the descriptive error: "%s".'
-            desc = desc % (response.get_url(), msg)
+            desc %= (response.get_url(), msg)
             i = Info('Descriptive error page', desc, response.id,
                      self.get_name())
             i.set_url(response.get_url())

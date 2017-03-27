@@ -33,9 +33,9 @@ from w3af.core.controllers.exceptions import RunOnce
 from w3af.core.data.kb.info import Info
 
 
-PERM_ERROR_MSG = "w3af won't be able to run plugin infrastructure.http_vs_" \
-                 "https_dist. It seems that the user running the w3af process" \
-                 " has not enough privileges."
+PERM_ERROR_MSG = ("w3af won't be able to run plugin infrastructure.http_vs_"
+                  "https_dist. It seems that the user running the w3af process"
+                  " has not enough privileges.")
 
 
 class http_vs_https_dist(InfrastructurePlugin):
@@ -86,21 +86,28 @@ class http_vs_https_dist(InfrastructurePlugin):
 
         # Import things from scapy when I need them in order to reduce memory
         # usage (which is specially big in scapy module, just when importing)
-        from scapy.all import traceroute
+        try:
+            from scapy.all import traceroute
+        except ImportError, ie:
+            om.out.debug('There was an error importing scapy.all: "%s"' % ie)
+            return
 
         try:
-            # pylint: disable=E1124
+            # pylint: disable=E1124,E1136
+
             # First try with httpS
             https_troute = traceroute(domain, dport=https_port)[0].get_trace()
             # Then with http
             http_troute = traceroute(domain, dport=http_port)[0].get_trace()
-            # pylint: enable=E1124
-        except:
+
+            # pylint: enable=E1124,E1136
+        except Exception, e:
             # I've seen numerous bug reports with the following exception:
             # "error: illegal IP address string passed to inet_aton"
             # that come from this part of the code. It seems that in some cases
             # the domain resolves to an IPv6 address and scapy does NOT
             # support that protocol.
+            om.out.debug('There was an error running scapy\'s traceroute: "%s"' % e)
             return
 
         # This destination was probably 'localhost' or a host reached
@@ -134,7 +141,7 @@ class http_vs_https_dist(InfrastructurePlugin):
 
                 desc = 'Routes to target "%s" using ports %s and ' \
                        '%s are different:\n%s\n%s'
-                desc = desc % (domain, http_port, https_port, trc1, trc2)
+                desc %= (domain, http_port, https_port, trc1, trc2)
                 set_info('HTTP and HTTPs hop distance', desc)
                 om.out.information(desc)
             else:
@@ -152,8 +159,13 @@ class http_vs_https_dist(InfrastructurePlugin):
         """
         # Import things from scapy when I need them in order to reduce memory
         # usage (which is specially big in scapy module, just when importing)
-        from scapy.all import traceroute
-        from scapy.error import Scapy_Exception
+        try:
+            from scapy.all import traceroute
+            from scapy.error import Scapy_Exception
+        except socket.error:
+            # [Errno 1] Operation not permitted #12131
+            # https://github.com/andresriancho/w3af/issues/12131
+            return False
 
         try:
             traceroute('127.0.0.1', maxttl=1)

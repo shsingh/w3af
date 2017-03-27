@@ -18,6 +18,7 @@ from w3af.core.controllers.ci.nosetests_wrapper.utils.nosetests import run_noset
 from w3af.core.controllers.ci.nosetests_wrapper.utils.test_stats import (get_all_tests,
                                                                          get_run_tests,
                                                                          get_test_ids,
+                                                                         save_noseids_as_json,
                                                                          get_ignored_tests)
 from w3af.core.controllers.ci.nosetests_wrapper.constants import (LOG_FILE,
                                                                   MAX_WORKERS,
@@ -37,7 +38,8 @@ def summarize_exit_codes(exit_codes):
     that number.
     """
     for ec in exit_codes:
-        if ec != 0: return ec
+        if ec != 0:
+            return ec
     
     return 0
 
@@ -47,6 +49,7 @@ def nose_strategy():
     :return: A list with the nosetests commands to run.
     """
     test_ids = get_test_ids(NOSE_RUN_SELECTOR)
+    save_noseids_as_json()
     
     for tests_to_run in zip(*[iter(test_ids)]*CHUNK_SIZE):
         
@@ -81,7 +84,7 @@ if __name__ == '__main__':
         
         total_tests = len(future_list)
         print_status(start_time, done_list, total_tests, queued_run_ids,
-                     executor)
+                     executor, exit_codes)
         
         while future_list:
             try:
@@ -99,7 +102,7 @@ if __name__ == '__main__':
                         queued_run_ids.remove(future.run_id)
 
                         print_status(start_time, done_list, total_tests,
-                                     queued_run_ids, executor)
+                                     queued_run_ids, executor, exit_codes)
 
                         if exit_code != 0:
                             print_info_console(cmd, stdout, stderr,
@@ -110,7 +113,7 @@ if __name__ == '__main__':
                 logging.debug('Hit futures.as_completed timeout.')
                 logging.warning('Waiting...')
                 print_status(start_time, done_list, total_tests, queued_run_ids,
-                             executor)
+                             executor, exit_codes)
             
             # Filter future_list to avoid issues with tasks which are already
             # finished/done

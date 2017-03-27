@@ -32,6 +32,7 @@ import w3af.core.controllers.output_manager as om
 from w3af.core.data.dc.utils.multipart import is_file_like
 from w3af.core.data.constants.encodings import DEFAULT_ENCODING
 from w3af.core.data.parsers.doc.url import URL
+from w3af.core.data.parsers.utils.form_id import FormID
 from w3af.core.data.parsers.utils.form_fields import (FileFormField,
                                                       get_value_by_key,
                                                       SelectFormField,
@@ -87,7 +88,20 @@ class FormParameters(OrderedDict):
                             INPUT_TYPE_RADIO,
                             INPUT_TYPE_SELECT}
 
-    def __init__(self, init_vals=(), meta=None, encoding=DEFAULT_ENCODING):
+    def __init__(self, init_vals=(), meta=None, encoding=DEFAULT_ENCODING,
+                 method='GET', action=None, form_encoding=DEFAULT_FORM_ENCODING,
+                 attributes=None, hosted_at_url=None):
+        """
+
+        :param init_vals: Initial form params
+        :param meta: Form parameter meta-data (indicates the input type)
+        :param encoding: Form encoding
+        :param method: GET, POST, etc.
+        :param action: URL where the form is sent
+        :param form_encoding: url, multipart, etc.
+        :param attributes: The form tag attributes as seen in the HTML
+        :param hosted_at_url: The URL where the form appeared
+        """
         # pylint: disable=E1002
         super(FormParameters, self).__init__(init_vals)
         # pylint: enable=E1002
@@ -95,21 +109,75 @@ class FormParameters(OrderedDict):
         # Form parameter meta-data
         self.meta = meta if meta is not None else {}
 
-        # Internal variables
-        # Form method defaults to GET if not found
-        self._method = 'GET'
-        self._action = None
+        # Defaults
         self._autocomplete = None
+        self._action = None
+        self._method = 'GET'
 
         # Two completely different types of encoding, first the enctype for the
         # form: multipart/urlencoded, then the charset encoding (UTF-8, etc.)
         self._form_encoding = DEFAULT_FORM_ENCODING
-        self._encoding = encoding
+        self._encoding = DEFAULT_ENCODING
+
+        # Call the setters (in a specific order!) so they can mangle the form
+        # params if required
+        #
+        # https://github.com/andresriancho/w3af/issues/11998
+        # https://github.com/andresriancho/w3af/issues/11997
+        self.set_encoding(encoding)
+        self.set_method(method)
+        self.set_action(action)
+        self.set_form_encoding(form_encoding)
+
+        # We need these for the form-id matching feature
+        # https://github.com/andresriancho/w3af/issues/15161
+        self._hosted_at_url = hosted_at_url
+        self._attributes = attributes
+
+    def get_form_id(self):
+        """
+        :return: A FormID which can be used to compare two forms
+        :see: https://github.com/andresriancho/w3af/issues/15161
+        """
+        return FormID(action=self._action,
+                      inputs=self.meta.keys(),
+                      attributes=self._attributes,
+                      hosted_at_url=self._hosted_at_url,
+                      method=self._method)
 
     def get_form_encoding(self):
         return self._form_encoding
 
     def set_form_encoding(self, form_encoding):
+        """
+        This method is a little bit more complex than I initially expected,
+        since it needs to handle cases where the HTML form was created with
+        a set of attributes that don't make sense together. For example take
+        a look at this:
+
+        <form action="" method="get" enctype="multipart/form-data">
+            <input type="text" name="test" value="тест">
+            <input type="submit" name="submit">
+        </form>
+
+        Chrome and Firefox will send this as a GET request with a query string
+        containing both the text and submit params in url-encoded form. This
+        means that they override the "user defined" multipart.
+
+        Situations like this triggered bugs:
+            https://github.com/andresriancho/w3af/issues/11997
+            https://github.com/andresriancho/w3af/issues/11998
+
+        So I had to change the method to be a little bit smarter and override
+        the form encoding in specific cases.
+
+        :param form_encoding: The user-defined string in the HTML which
+                              specifies the form encoding to use.
+        :return:
+        """
+        if 'multipart/' in form_encoding.lower() and self.get_method() == 'GET':
+            form_encoding = DEFAULT_FORM_ENCODING
+
         self._form_encoding = form_encoding
 
     def get_encoding(self):
@@ -150,7 +218,25 @@ class FormParameters(OrderedDict):
         return self._method
 
     def set_method(self, method):
+        """
+        Form method defaults to GET if not found
+        :param method: HTTP method
+        :return: None
+        """
         self._method = method.upper()
+
+    def has_post_data(self):
+        """
+        When w3af translates the form params into a request at
+        FuzzableRequest.from_form() it uses this method to determine if the
+        form parameters are send in the query string or in the post-data
+
+        :return: True if we should send the params in the post-data
+        """
+        if self.get_method().upper() in ('POST', 'PUT', 'PATCH'):
+            return True
+
+        return False
 
     def get_file_name(self, pname, default=None):
         """
@@ -196,10 +282,12 @@ class FormParameters(OrderedDict):
                 if isinstance(v, FileFormField):
                     file_keys.add(k)
 
+        # pylint: disable=E1133
         for k, v_lst in self.items():
             for v in v_lst:
                 if is_file_like(v):
                     file_keys.add(k)
+        # pylint: enable=E1133
 
         return list(file_keys)
 
@@ -259,7 +347,7 @@ class FormParameters(OrderedDict):
             return False, None
 
         # shortcut
-        snf = same_name_fields = self.meta.get(input_name, [])
+        snf = self.meta.get(input_name, [])
 
         # Find the attr type and value, setting the default type to text (if
         # missing in the tag) and the default value to an empty string (if
@@ -515,7 +603,10 @@ class FormParameters(OrderedDict):
         :return: A copy of myself.
         """
         init_val = copy.deepcopy(self.items())
-        self_copy = FormParameters(init_vals=init_val, meta=self.meta)
+        self_copy = FormParameters(init_vals=init_val,
+                                   meta=self.meta,
+                                   attributes=self._attributes,
+                                   hosted_at_url=self._hosted_at_url)
 
         # Internal variables
         self_copy.set_method(self.get_method())
@@ -538,10 +629,12 @@ class FormParameters(OrderedDict):
     def __repr__(self):
         items = []
 
+        # pylint: disable=E1133
         for key, value_list in self.iteritems():
             for value in value_list:
                 kv = "'%s': '%s'" % (key, value)
                 items.append(kv)
+        # pylint: enable=E1133
 
         data = ', '.join(items)
 

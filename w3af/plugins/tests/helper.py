@@ -54,6 +54,16 @@ RE_COMPILE_TYPE = type(re.compile(''))
 @attr('moth')
 class PluginTest(unittest.TestCase):
     """
+    These tests can be configured using two environment variables:
+
+        * HTTP_PROXY=127.0.0.1:8080 , route HTTP traffic through a local proxy
+        * HTTPS_PROXY=127.0.0.1:8080 , route HTTPS traffic through a local proxy
+        * DEBUG=1 , enable logging
+
+    For example:
+
+        HTTP_PROXY=127.0.0.1:8080 nosetests -s w3af/plugins/tests/infrastructure/test_allowed_methods.py
+
     Remember that nosetests can't find test generators in unittest.TestCase,
     http://stackoverflow.com/questions/6689537/nose-test-generators-inside-class
     """
@@ -61,7 +71,8 @@ class PluginTest(unittest.TestCase):
     runconfig = {}
     kb = kb.kb
     target_url = None
-    
+    base_path = None
+
     def setUp(self):
         self.kb.cleanup()
         self.w3afcore = w3afCore()
@@ -214,11 +225,13 @@ class PluginTest(unittest.TestCase):
                 response.read()
             except urllib2.URLError, e:
                 if hasattr(e, 'code'):
+                    # pylint: disable=E1101
                     if e.code in (404, 403, 401):
                         continue
                     else:
                         no_code = 'Unexpected code %s' % e.code
                         self.assertTrue(False, msg % (target, no_code))
+                    # pylint: enable=E1101
 
                 self.assertTrue(False, msg % (target, e.reason))
             
@@ -277,6 +290,11 @@ class PluginTest(unittest.TestCase):
         if debug or environ_debug:
             self._configure_debug()
 
+        # Set a special user agent to be able to grep the logs and identify
+        # requests sent by each test
+        custom_test_agent = self.get_custom_agent()
+        self.w3afcore.uri_opener.settings.set_user_agent(custom_test_agent)
+
         # Verify env and start the scan
         self.w3afcore.plugins.init_plugins()
         self.w3afcore.verify_environment()
@@ -292,6 +310,71 @@ class PluginTest(unittest.TestCase):
             caught_exceptions = self.w3afcore.exception_handler.get_all_exceptions()
             tracebacks = [e.get_details() for e in caught_exceptions]
             self.assertEqual(len(caught_exceptions), 0, tracebacks)
+
+    def _scan_assert(self, config, expected_path_param, ok_to_miss,
+                     kb_addresses, skip_startwith=(), debug=False):
+
+        # Make sure the subclass is properly configured
+        self.assertIsNotNone(self.target_url)
+        self.assertIsNotNone(self.base_path)
+
+        # Scan
+        self._scan(self.target_url, config, debug=debug)
+
+        # Get the results
+        vulns = []
+        for kb_address in kb_addresses:
+            vulns.extend(self.kb.get(*kb_address))
+
+        found_path_param = set()
+        for vuln in vulns:
+            path = vuln.get_url().get_path().replace(self.base_path, '')
+            found_path_param.add((path, vuln.get_token_name()))
+
+        self.assertEqual(expected_path_param, found_path_param)
+
+        #
+        #   Now we assert the unknowns
+        #
+        all_known_urls = self.kb.get_all_known_urls()
+        all_known_files = [u.get_path().replace(self.base_path, '') for u in all_known_urls]
+
+        expected = [path for path, param in expected_path_param]
+
+        missing = []
+
+        for path in all_known_files:
+
+            should_continue = False
+
+            for skip_start in skip_startwith:
+                if path.startswith(skip_start):
+                    should_continue = True
+                    break
+
+            if should_continue:
+                continue
+
+            if path == u'':
+                continue
+
+            if path in ok_to_miss:
+                continue
+
+            if path in expected:
+                # Already checked this one
+                continue
+
+            missing.append(path)
+
+        missing.sort()
+        self.assertEqual(missing, [])
+
+    def get_custom_agent(self):
+        """
+        :return: The test agent for easier log grep
+        """
+        return 'Mozilla/4.0 (compatible; w3af.org; TestCase: %s)' % self.id()
 
     def _formatMessage(self, msg, standardMsg):
         """Honour the longMessage attribute when generating failure messages.
@@ -483,6 +566,10 @@ class MockResponse(object):
         assert method in self.KNOWN_METHODS, self.NO_MOCK
         assert isinstance(url, (basestring, RE_COMPILE_TYPE))
 
+        if isinstance(url, basestring):
+            url = URL(url)
+            assert url.get_domain(), 'Need to specify the MockResponse domain'
+
     def __repr__(self):
         if isinstance(self.url, RE_COMPILE_TYPE):
             match = 're:"%s"' % self.url.pattern
@@ -528,8 +615,22 @@ class MockResponse(object):
         :return: True if the request_uri matches this mock_response
         """
         if isinstance(self.url, basestring):
-            if request_uri.endswith(self.url):
-                return True
+            request_uri = URL(request_uri)
+            response_uri = URL(self.url)
+
+            request_path = request_uri.get_path_qs()
+            request_domain = request_uri.get_domain()
+
+            response_path = response_uri.get_path_qs()
+            response_domain = response_uri.get_domain()
+
+            if response_domain != request_domain:
+                return False
+
+            if request_path != response_path:
+                return False
+
+            return True
 
         elif isinstance(self.url, RE_COMPILE_TYPE):
             if self.url.match(request_uri):

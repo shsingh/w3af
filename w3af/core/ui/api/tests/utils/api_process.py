@@ -57,21 +57,21 @@ def start_api():
                                preexec_fn=os.setsid,
                                cwd=w3af_api_path)
 
-    api_url = 'http://127.0.0.1:%s' % port
+    api_url = 'https://127.0.0.1:%s' % port
 
     # Now we wait until the API is ready to answer requests
     for i in xrange(75):
         time.sleep(0.5)
 
         try:
-            response = requests.get(api_url, auth=api_auth)
+            response = requests.get(api_url, auth=api_auth, verify=False)
         except:
             if process.pid is None and i > 25:
                 raise RuntimeError('Failed to start the REST API service')
         else:
-            if response.status_code in (200, 404):
+            if response.status_code in (200, 404, 401):
                 break
     else:
-        raise RuntimeError('Timed out waiting for REST API service start')
+        raise RuntimeError('Timed out waiting for REST API service at %s' % api_url)
 
     return process, port, api_url, api_auth

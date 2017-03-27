@@ -97,13 +97,35 @@ def get_clean_body(mutant, response):
         mod_value = smart_unicode(mod_value, errors=PERCENT_ENCODE)
 
         empty = u''
-        unquoted = urllib.unquote_plus(mod_value)
         cgi_escape = cgi.escape
 
-        body = body.replace(mod_value, empty)
-        body = body.replace(unquoted, empty)
-        body = body.replace(cgi_escape(mod_value), empty)
-        body = body.replace(cgi_escape(unquoted), empty)
+        # unquote, just in case...
+        unquoted = urllib.unquote_plus(mod_value)
+
+        # encoding in two different ways since we don't know how the server-side
+        # will encode, and we want to remove both options
+        urlencoded_plus = urllib.quote_plus(mod_value)
+        urlencoded_20 = urllib.quote(mod_value)
+
+        # double encoding
+        urlencoded_plus_plus = urllib.quote_plus(urlencoded_plus)
+        urlencoded_20_20 = urllib.quote(urlencoded_20)
+
+        to_replace_lst = [mod_value,
+                          unquoted,
+                          urlencoded_plus,
+                          urlencoded_20,
+                          urlencoded_plus_plus,
+                          urlencoded_20_20,
+                          cgi_escape(mod_value),
+                          cgi_escape(unquoted)]
+
+        # uniq sorted
+        to_replace_lst = list(set(to_replace_lst))
+        to_replace_lst.sort(lambda x, y: cmp(len(y), len(x)))
+
+        for to_replace in to_replace_lst:
+            body = body.replace(to_replace, empty)
 
     return body
 
@@ -130,7 +152,7 @@ def get_exception_reason(error):
     """
     if isinstance(error, URLTimeoutError):
         # New exception type raised by keepalive handler
-        return error.message
+        return str(error)
 
     # Exceptions may be of type httplib.HTTPException or socket.error
     # We're interested on handling them in different ways
@@ -143,6 +165,9 @@ def get_exception_reason(error):
     if isinstance(error, OpenSSL.SSL.SysCallError):
         if error[0] in KNOWN_SOCKET_ERRORS:
             return str(error[1])
+
+    if isinstance(error, OpenSSL.SSL.ZeroReturnError):
+        return 'OpenSSL Error: OpenSSL.SSL.ZeroReturnError'
 
     if isinstance(error, (ssl.SSLError, socket.sslerror)):
         socket_reason = get_socket_exception_reason(error)

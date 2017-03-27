@@ -101,9 +101,11 @@ class TestFormParams(unittest.TestCase):
                 form_input_type = new_form.get_parameter_type(elem_name)
                 self.assertEqual(form_input_type, elem_type)
 
+                # pylint: disable=E1133
                 for value in values:
                     if elem_type == INPUT_TYPE_SELECT:
                         self.assertIn(value, elem['values'])
+                # pylint: enable=E1133
 
     def test_variants_do_not_modify_original(self):
         bigform_data = form_with_radio + form_select_misc
@@ -361,6 +363,25 @@ class TestFormParams(unittest.TestCase):
         self.assertIsNot(form, copy)
         self.assertEquals(pickled_form_params.get_parameter_type('sex'),
                           INPUT_TYPE_RADIO)
+
+    def test_get_form_id(self):
+        action = URL('http://www.w3af.com/action')
+        hosted_at_url = URL('http://www.w3af.com/')
+        attributes = {'class': 'form-main'}
+
+        form = FormParameters(method='GET', action=action,
+                              attributes=attributes,
+                              hosted_at_url=hosted_at_url)
+        form.add_field_by_attrs({'name': 'username', 'type': 'text'})
+        form.add_field_by_attrs({'name': 'pwd', 'type': 'password'})
+
+        form_id = form.get_form_id()
+
+        self.assertEqual(form_id.action, action)
+        self.assertEqual(form_id.attributes, attributes)
+        self.assertEqual(form_id.method, 'GET')
+        self.assertEqual(form_id.hosted_at_url, hosted_at_url)
+        self.assertEqual(form_id.inputs, ['username', 'pwd'])
 
 
 def get_grouped_data(form_data):

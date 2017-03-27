@@ -230,15 +230,15 @@ class clusterCellData(gtk.TreeView):
         b_str = b.get_body()
 
         m, n = (len(a_str), a_str), (len(b_str), b_str)
-        #ensure that the 'm' tuple holds the longest string
-        if(m[0] < n[0]):
+        # ensure that the 'm' tuple holds the longest string
+        if m[0] < n[0]:
             m, n = n, m
-        #assume distance = length of longest string (worst case)
+        # assume distance = length of longest string (worst case)
         dist = m[0]
         # reduce the distance for each char match in shorter string
         for i in range(0, n[0]):
             if m[1][i] == n[1][i]:
-                dist = dist - 1
+                dist -= 1
 
         # make it relative
         longer = float(max((len(a_str), len(b_str))))
@@ -471,5 +471,5 @@ if __name__ == "__main__":
             200, 'my data likes me', {}, url_instance, url_instance, _id=5)
     ]
 
-    cl_win = ClusterCellWindow(data=data)
+    cl_win = ClusterCellWindow(None, data=data)
     main()

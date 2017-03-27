@@ -278,7 +278,11 @@ class Info(dict):
             return
 
         if not DBVuln.is_valid_id(vulndb_id):
-            raise ValueError('Invalid vulnerability DB id: %s' % vulndb_id)
+            all_db_ids = DBVuln.get_all_db_ids()
+            msg = ('Invalid vulnerability DB id %s. There are %s entries in'
+                   ' the vulnerability database but none is the specified one.')
+            args = (vulndb_id, len(all_db_ids))
+            raise ValueError(msg % args)
 
         self._vulndb_id = vulndb_id
 
@@ -373,19 +377,19 @@ class Info(dict):
     def _get_desc_impl(self, what, with_id=True):
         
         if self._id is not None and self._id != 0 and with_id:
-            if not self._desc.strip().endswith('.'):
-                self._desc += '.'
+            if self._desc[-1] != '\n' and not self._desc.strip().endswith('.'):
+                self._desc += '. '
 
             # One request OR more than one request
             desc_to_return = self._desc
             if len(self._id) > 1:
                 id_range = self._convert_to_range_wrapper(self._id)
                 
-                desc_to_return += ' This %s was found in the requests' % what
+                desc_to_return += 'This %s was found in the requests' % what
                 desc_to_return += ' with ids %s.' % id_range
 
             elif len(self._id) == 1:
-                desc_to_return += ' This %s was found in the request' % what
+                desc_to_return += 'This %s was found in the request' % what
                 desc_to_return += ' with id %s.' % self._id[0]
 
             return desc_to_return

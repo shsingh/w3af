@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Copyright (c) 2006-2015 sqlmap developers (http://sqlmap.org/)
+Copyright (c) 2006-2017 sqlmap developers (http://sqlmap.org/)
 See the file 'doc/COPYING' for copying permission
 """
 
@@ -14,6 +14,7 @@ from lib.core.common import isNoneValue
 from lib.core.common import isNumPosStrValue
 from lib.core.common import isTechniqueAvailable
 from lib.core.common import safeSQLIdentificatorNaming
+from lib.core.common import safeStringFormat
 from lib.core.common import unArrayizeValue
 from lib.core.common import unsafeSQLIdentificatorNaming
 from lib.core.data import conf
@@ -21,6 +22,7 @@ from lib.core.data import kb
 from lib.core.data import logger
 from lib.core.data import queries
 from lib.core.enums import CHARSET_TYPE
+from lib.core.enums import DBMS
 from lib.core.enums import EXPECTED
 from lib.core.enums import PAYLOAD
 from lib.core.exception import SqlmapNoneDataException
@@ -87,7 +89,7 @@ class Enumeration(GenericEnumeration):
         infoMsg += "%s: %s" % ("s" if len(dbs) > 1 else "", ", ".join(db if isinstance(db, basestring) else db[0] for db in sorted(dbs)))
         logger.info(infoMsg)
 
-        rootQuery = queries[Backend.getIdentifiedDbms()].tables
+        rootQuery = queries[DBMS.MSSQL].tables
 
         if any(isTechniqueAvailable(_) for _ in (PAYLOAD.TECHNIQUE.UNION, PAYLOAD.TECHNIQUE.ERROR, PAYLOAD.TECHNIQUE.QUERY)) or conf.direct:
             for db in dbs:
@@ -136,7 +138,7 @@ class Enumeration(GenericEnumeration):
                 tables = []
 
                 for index in xrange(int(count)):
-                    _ = (rootQuery.blind.query if query == rootQuery.blind.count else rootQuery.blind.query2 if query == rootQuery.blind.count2 else rootQuery.blind.query3).replace("%s", db) % index
+                    _ = safeStringFormat((rootQuery.blind.query if query == rootQuery.blind.count else rootQuery.blind.query2 if query == rootQuery.blind.count2 else rootQuery.blind.query3).replace("%s", db), index)
 
                     table = inject.getValue(_, union=False, error=False)
                     if not isNoneValue(table):
@@ -151,7 +153,7 @@ class Enumeration(GenericEnumeration):
                     warnMsg += "for database '%s'" % db
                     logger.warn(warnMsg)
 
-        if not kb.data.cachedTables:
+        if not kb.data.cachedTables and not conf.search:
             errMsg = "unable to retrieve the tables for any database"
             raise SqlmapNoneDataException(errMsg)
         else:
@@ -163,11 +165,14 @@ class Enumeration(GenericEnumeration):
     def searchTable(self):
         foundTbls = {}
         tblList = conf.tbl.split(",")
-        rootQuery = queries[Backend.getIdentifiedDbms()].search_table
+        rootQuery = queries[DBMS.MSSQL].search_table
         tblCond = rootQuery.inband.condition
         tblConsider, tblCondParam = self.likeOrExact("table")
 
-        if conf.db and conf.db != CURRENT_DB:
+        if conf.db == CURRENT_DB:
+            conf.db = self.getCurrentDb()
+
+        if conf.db:
             enumDbs = conf.db.split(",")
         elif not len(kb.data.cachedDbs):
             enumDbs = self.getDbs()
@@ -183,7 +188,7 @@ class Enumeration(GenericEnumeration):
 
             infoMsg = "searching table"
             if tblConsider == "1":
-                infoMsg += "s like"
+                infoMsg += "s LIKE"
             infoMsg += " '%s'" % unsafeSQLIdentificatorNaming(tbl)
             logger.info(infoMsg)
 
@@ -216,7 +221,7 @@ class Enumeration(GenericEnumeration):
                 else:
                     infoMsg = "fetching number of table"
                     if tblConsider == "1":
-                        infoMsg += "s like"
+                        infoMsg += "s LIKE"
                     infoMsg += " '%s' in database '%s'" % (unsafeSQLIdentificatorNaming(tbl), unsafeSQLIdentificatorNaming(db))
                     logger.info(infoMsg)
 
@@ -228,7 +233,7 @@ class Enumeration(GenericEnumeration):
                     if not isNumPosStrValue(count):
                         warnMsg = "no table"
                         if tblConsider == "1":
-                            warnMsg += "s like"
+                            warnMsg += "s LIKE"
                         warnMsg += " '%s' " % unsafeSQLIdentificatorNaming(tbl)
                         warnMsg += "in database '%s'" % unsafeSQLIdentificatorNaming(db)
                         logger.warn(warnMsg)
@@ -259,7 +264,7 @@ class Enumeration(GenericEnumeration):
         self.dumpFoundTables(foundTbls)
 
     def searchColumn(self):
-        rootQuery = queries[Backend.getIdentifiedDbms()].search_column
+        rootQuery = queries[DBMS.MSSQL].search_column
         foundCols = {}
         dbs = {}
         whereTblsQuery = ""
@@ -276,7 +281,10 @@ class Enumeration(GenericEnumeration):
         tblCond = rootQuery.inband.condition2
         colConsider, colCondParam = self.likeOrExact("column")
 
-        if conf.db and conf.db != CURRENT_DB:
+        if conf.db == CURRENT_DB:
+            conf.db = self.getCurrentDb()
+
+        if conf.db:
             enumDbs = conf.db.split(",")
         elif not len(kb.data.cachedDbs):
             enumDbs = self.getDbs()
@@ -294,7 +302,7 @@ class Enumeration(GenericEnumeration):
 
             infoMsg = "searching column"
             if colConsider == "1":
-                infoMsg += "s like"
+                infoMsg += "s LIKE"
             infoMsg += " '%s'" % unsafeSQLIdentificatorNaming(column)
 
             foundCols[column] = {}
@@ -304,12 +312,15 @@ class Enumeration(GenericEnumeration):
                 whereTblsQuery = " AND (" + " OR ".join("%s = '%s'" % (tblCond, unsafeSQLIdentificatorNaming(tbl)) for tbl in _) + ")"
                 infoMsgTbl = " for table%s '%s'" % ("s" if len(_) > 1 else "", ", ".join(tbl for tbl in _))
 
-            if conf.db and conf.db != CURRENT_DB:
+            if conf.db == CURRENT_DB:
+                conf.db = self.getCurrentDb()
+
+            if conf.db:
                 _ = conf.db.split(",")
                 infoMsgDb = " in database%s '%s'" % ("s" if len(_) > 1 else "", ", ".join(db for db in _))
             elif conf.excludeSysDbs:
-                infoMsg2 = "skipping system database%s '%s'" % ("s" if len(self.excludeDbsList) > 1 else "", ", ".join(db for db in self.excludeDbsList))
-                logger.info(infoMsg2)
+                msg = "skipping system database%s '%s'" % ("s" if len(self.excludeDbsList) > 1 else "", ", ".join(db for db in self.excludeDbsList))
+                logger.info(msg)
             else:
                 infoMsgDb = " across all databases"
 
@@ -335,7 +346,7 @@ class Enumeration(GenericEnumeration):
                             values = [values]
 
                         for foundTbl in values:
-                            foundTbl = safeSQLIdentificatorNaming(foundTbl, True)
+                            foundTbl = safeSQLIdentificatorNaming(unArrayizeValue(foundTbl), True)
 
                             if foundTbl is None:
                                 continue
@@ -366,7 +377,7 @@ class Enumeration(GenericEnumeration):
 
                     infoMsg = "fetching number of tables containing column"
                     if colConsider == "1":
-                        infoMsg += "s like"
+                        infoMsg += "s LIKE"
                     infoMsg += " '%s' in database '%s'" % (column, db)
                     logger.info("%s%s" % (infoMsg, infoMsgTbl))
 
@@ -379,7 +390,7 @@ class Enumeration(GenericEnumeration):
                     if not isNumPosStrValue(count):
                         warnMsg = "no tables contain column"
                         if colConsider == "1":
-                            warnMsg += "s like"
+                            warnMsg += "s LIKE"
                         warnMsg += " '%s' " % column
                         warnMsg += "in database '%s'" % db
                         logger.warn(warnMsg)

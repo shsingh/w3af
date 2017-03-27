@@ -28,7 +28,10 @@ import StringIO
 from lxml import etree
 from collections import namedtuple
 
+import w3af.core.data.kb.config as cf
 import w3af.core.controllers.output_manager as om
+
+from w3af.core.controllers.misc_settings import EXCLUDE, INCLUDE
 from w3af.core.data.parsers.doc.baseparser import BaseParser
 from w3af.core.data.parsers.doc.url import URL
 from w3af.core.data.constants.encodings import DEFAULT_ENCODING
@@ -171,18 +174,14 @@ class SGMLParser(BaseParser):
         resp_body = http_resp.get_body()
 
         try:
-            self._parse_response_body_as_string(resp_body)
+            self._parse_response_body_as_string(resp_body, errors='ignore')
         except etree.XMLSyntaxError, xse:
-            msg = ('An error occurred while parsing "%s",'
-                   ' original exception: "%s"')
+            #
+            # This is too common, we don't want to raise an exception because
+            # of invalid / broken HTML
+            #
+            msg = 'Error occurred while parsing "%s", original exception: "%s"'
             om.out.debug(msg % (http_resp.get_url(), xse))
-        except ValueError:
-            # Sometimes we get XMLs in the response. lxml fails to parse them
-            # when an encoding header is specified and the text is unicode. So
-            # we better make an exception and convert it to string. Note that
-            # yet the parsed elems will be unicode.
-            self._parse_response_body_as_string(resp_body,
-                                                errors='xmlcharrefreplace')
 
     def _parse_response_body_as_string(self, resp_body, errors='strict'):
         """
@@ -397,12 +396,32 @@ class SGMLParser(BaseParser):
                 # Save url
                 self._tag_and_url.add((tag_name, url))
 
-    ## Properties ##
+    #
+    # Properties
+    #
     @property
     def forms(self):
         """
-        :return: Return list of forms.
+        :return: Return list of forms filtered using the form_id_list and
+                 form_id_action user configuration settings.
         """
+        form_id_list = cf.cf.get('form_id_list')
+        form_id_action = cf.cf.get('form_id_action') or EXCLUDE
+
+        if form_id_list is not None and len(form_id_list.get_form_ids()):
+            filtered_forms = []
+
+            for form in self._forms:
+                form_id = form.get_form_id()
+                matches_one_config_filter = form_id.matches_one_of(form_id_list)
+
+                if matches_one_config_filter and form_id_action == INCLUDE:
+                    filtered_forms.append(form)
+                elif not matches_one_config_filter and form_id_action == EXCLUDE:
+                    filtered_forms.append(form)
+
+            return filtered_forms
+
         return self._forms
 
     def get_forms(self):

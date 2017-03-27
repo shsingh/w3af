@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Copyright (c) 2006-2015 sqlmap developers (http://sqlmap.org/)
+Copyright (c) 2006-2017 sqlmap developers (http://sqlmap.org/)
 See the file 'doc/COPYING' for copying permission
 """
 
@@ -343,7 +343,6 @@ class Filesystem(GenericFilesystem):
         logger.info(infoMsg)
 
         chunkMaxSize = 500
-        dFileName = ntpath.basename(dFile)
 
         randFile = "tmpf%s.txt" % randomStr(lowercase=True)
         randFilePath = "%s\%s" % (tmpPath, randFile)

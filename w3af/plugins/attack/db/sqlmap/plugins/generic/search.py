@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Copyright (c) 2006-2015 sqlmap developers (http://sqlmap.org/)
+Copyright (c) 2006-2017 sqlmap developers (http://sqlmap.org/)
 See the file 'doc/COPYING' for copying permission
 """
 
@@ -65,7 +65,7 @@ class Search:
 
             infoMsg = "searching database"
             if dbConsider == "1":
-                infoMsg += "s like"
+                infoMsg += "s LIKE"
             infoMsg += " '%s'" % unsafeSQLIdentificatorNaming(db)
             logger.info(infoMsg)
 
@@ -98,7 +98,7 @@ class Search:
             if not values and isInferenceAvailable() and not conf.direct:
                 infoMsg = "fetching number of database"
                 if dbConsider == "1":
-                    infoMsg += "s like"
+                    infoMsg += "s LIKE"
                 infoMsg += " '%s'" % unsafeSQLIdentificatorNaming(db)
                 logger.info(infoMsg)
 
@@ -113,7 +113,7 @@ class Search:
                 if not isNumPosStrValue(count):
                     warnMsg = "no database"
                     if dbConsider == "1":
-                        warnMsg += "s like"
+                        warnMsg += "s LIKE"
                     warnMsg += " '%s' found" % unsafeSQLIdentificatorNaming(db)
                     logger.warn(warnMsg)
 
@@ -172,17 +172,20 @@ class Search:
 
             infoMsg = "searching table"
             if tblConsider == "1":
-                infoMsg += "s like"
+                infoMsg += "s LIKE"
             infoMsg += " '%s'" % unsafeSQLIdentificatorNaming(tbl)
 
-            if dbCond and conf.db and conf.db != CURRENT_DB:
+            if conf.db == CURRENT_DB:
+                conf.db = self.getCurrentDb()
+
+            if dbCond and conf.db:
                 _ = conf.db.split(",")
                 whereDbsQuery = " AND (" + " OR ".join("%s = '%s'" % (dbCond, unsafeSQLIdentificatorNaming(db)) for db in _) + ")"
                 infoMsg += " for database%s '%s'" % ("s" if len(_) > 1 else "", ", ".join(db for db in _))
             elif conf.excludeSysDbs:
                 whereDbsQuery = "".join(" AND '%s' != %s" % (unsafeSQLIdentificatorNaming(db), dbCond) for db in self.excludeDbsList)
-                infoMsg2 = "skipping system database%s '%s'" % ("s" if len(self.excludeDbsList) > 1 else "", ", ".join(db for db in self.excludeDbsList))
-                logger.info(infoMsg2)
+                msg = "skipping system database%s '%s'" % ("s" if len(self.excludeDbsList) > 1 else "", ", ".join(db for db in self.excludeDbsList))
+                logger.info(msg)
             else:
                 whereDbsQuery = ""
 
@@ -225,7 +228,7 @@ class Search:
                     if len(whereDbsQuery) == 0:
                         infoMsg = "fetching number of databases with table"
                         if tblConsider == "1":
-                            infoMsg += "s like"
+                            infoMsg += "s LIKE"
                         infoMsg += " '%s'" % unsafeSQLIdentificatorNaming(tbl)
                         logger.info(infoMsg)
 
@@ -236,7 +239,7 @@ class Search:
                         if not isNumPosStrValue(count):
                             warnMsg = "no databases have table"
                             if tblConsider == "1":
-                                warnMsg += "s like"
+                                warnMsg += "s LIKE"
                             warnMsg += " '%s'" % unsafeSQLIdentificatorNaming(tbl)
                             logger.warn(warnMsg)
 
@@ -274,7 +277,7 @@ class Search:
 
                     infoMsg = "fetching number of table"
                     if tblConsider == "1":
-                        infoMsg += "s like"
+                        infoMsg += "s LIKE"
                     infoMsg += " '%s' in database '%s'" % (unsafeSQLIdentificatorNaming(tbl), unsafeSQLIdentificatorNaming(db))
                     logger.info(infoMsg)
 
@@ -288,7 +291,7 @@ class Search:
                     if not isNumPosStrValue(count):
                         warnMsg = "no table"
                         if tblConsider == "1":
-                            warnMsg += "s like"
+                            warnMsg += "s LIKE"
                         warnMsg += " '%s' " % unsafeSQLIdentificatorNaming(tbl)
                         warnMsg += "in database '%s'" % unsafeSQLIdentificatorNaming(db)
                         logger.warn(warnMsg)
@@ -390,7 +393,7 @@ class Search:
 
             infoMsg = "searching column"
             if colConsider == "1":
-                infoMsg += "s like"
+                infoMsg += "s LIKE"
             infoMsg += " '%s'" % unsafeSQLIdentificatorNaming(column)
 
             foundCols[column] = {}
@@ -400,14 +403,17 @@ class Search:
                 whereTblsQuery = " AND (" + " OR ".join("%s = '%s'" % (tblCond, unsafeSQLIdentificatorNaming(tbl)) for tbl in _) + ")"
                 infoMsgTbl = " for table%s '%s'" % ("s" if len(_) > 1 else "", ", ".join(unsafeSQLIdentificatorNaming(tbl) for tbl in _))
 
-            if conf.db and conf.db != CURRENT_DB:
+            if conf.db == CURRENT_DB:
+                conf.db = self.getCurrentDb()
+
+            if conf.db:
                 _ = conf.db.split(",")
                 whereDbsQuery = " AND (" + " OR ".join("%s = '%s'" % (dbCond, unsafeSQLIdentificatorNaming(db)) for db in _) + ")"
                 infoMsgDb = " in database%s '%s'" % ("s" if len(_) > 1 else "", ", ".join(unsafeSQLIdentificatorNaming(db) for db in _))
             elif conf.excludeSysDbs:
                 whereDbsQuery = "".join(" AND %s != '%s'" % (dbCond, unsafeSQLIdentificatorNaming(db)) for db in self.excludeDbsList)
-                infoMsg2 = "skipping system database%s '%s'" % ("s" if len(self.excludeDbsList) > 1 else "", ", ".join(unsafeSQLIdentificatorNaming(db) for db in self.excludeDbsList))
-                logger.info(infoMsg2)
+                msg = "skipping system database%s '%s'" % ("s" if len(self.excludeDbsList) > 1 else "", ", ".join(unsafeSQLIdentificatorNaming(db) for db in self.excludeDbsList))
+                logger.info(msg)
             else:
                 infoMsgDb = " across all databases"
 
@@ -468,7 +474,7 @@ class Search:
                 if not conf.db:
                     infoMsg = "fetching number of databases with tables containing column"
                     if colConsider == "1":
-                        infoMsg += "s like"
+                        infoMsg += "s LIKE"
                     infoMsg += " '%s'" % unsafeSQLIdentificatorNaming(column)
                     logger.info("%s%s%s" % (infoMsg, infoMsgTbl, infoMsgDb))
 
@@ -479,7 +485,7 @@ class Search:
                     if not isNumPosStrValue(count):
                         warnMsg = "no databases have tables containing column"
                         if colConsider == "1":
-                            warnMsg += "s like"
+                            warnMsg += "s LIKE"
                         warnMsg += " '%s'" % unsafeSQLIdentificatorNaming(column)
                         logger.warn("%s%s" % (warnMsg, infoMsgTbl))
 
@@ -519,7 +525,7 @@ class Search:
 
                         infoMsg = "fetching number of tables containing column"
                         if colConsider == "1":
-                            infoMsg += "s like"
+                            infoMsg += "s LIKE"
                         infoMsg += " '%s' in database '%s'" % (unsafeSQLIdentificatorNaming(column), unsafeSQLIdentificatorNaming(db))
                         logger.info(infoMsg)
 
@@ -533,7 +539,7 @@ class Search:
                         if not isNumPosStrValue(count):
                             warnMsg = "no tables contain column"
                             if colConsider == "1":
-                                warnMsg += "s like"
+                                warnMsg += "s LIKE"
                             warnMsg += " '%s' " % unsafeSQLIdentificatorNaming(column)
                             warnMsg += "in database '%s'" % unsafeSQLIdentificatorNaming(db)
                             logger.warn(warnMsg)
